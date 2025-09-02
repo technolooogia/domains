@@ -10,3 +10,5 @@ nltk>=3.7
 plotly>=5.10.0
 numpy>=1.21.0
 selenium
+whois
+asyncio
