@@ -13,4 +13,6 @@ selenium
 whois
 asyncio
 tweepy
-sqlite3
+yfinance
+newspaper3k
+schedule
