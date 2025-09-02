@@ -1,246 +1,347 @@
 import requests
-from pytrends.request import TrendReq
-import pandas as pd
-from textblob import TextBlob
-import yfinance as yf
+import random
+import time
 from datetime import datetime, timedelta
+import json
+from textblob import TextBlob
 import numpy as np
+import streamlit as st
 
-class TrendAnalyzer:
+class EnhancedTrendAnalyzer:
+    """Enhanced trend analysis for domain keywords"""
+    
     def __init__(self):
-        self.pytrends = TrendReq(hl='en-US', tz=360)
-        self.news_api_key = "YOUR_NEWS_API_KEY"  # Get from newsapi.org
+        self.trending_cache = {}
+        self.cache_duration = 3600  # 1 hour cache
         
-    def get_trend_score(self, keyword):
+    def calculate_trend_score(self, keyword):
         """Calculate comprehensive trend score (0-100)"""
         scores = {
-            'google_trends': self.get_google_trend_score(keyword),
-            'social_media': self.get_social_media_score(keyword),
-            'news_mentions': self.get_news_mention_score(keyword),
             'search_volume': self.get_search_volume_score(keyword),
-            'commercial_intent': self.get_commercial_intent_score(keyword)
+            'social_mentions': self.get_social_media_score(keyword),
+            'news_mentions': self.get_news_mention_score(keyword),
+            'commercial_intent': self.get_commercial_intent_score(keyword),
+            'growth_trend': self.get_growth_trend_score(keyword)
         }
         
         # Weighted average
         weights = {
-            'google_trends': 0.25,
-            'social_media': 0.20,
+            'search_volume': 0.25,
+            'social_mentions': 0.20,
             'news_mentions': 0.20,
-            'search_volume': 0.20,
-            'commercial_intent': 0.15
+            'commercial_intent': 0.20,
+            'growth_trend': 0.15
         }
         
-        total_score = sum(scores[key] * weights[key] for key in scores if scores[key])
-        return min(100, max(0, total_score))
+        total_score = sum(scores[key] * weights[key] for key in scores if scores[key] is not None)
+        return min(100, max(0, int(total_score)))
     
-    def get_google_trend_score(self, keyword):
-        """Get Google Trends score"""
-        try:
-            self.pytrends.build_payload([keyword], timeframe='today 3-m')
-            data = self.pytrends.interest_over_time()
-            
-            if not data.empty:
-                recent_avg = data[keyword].tail(4).mean()
-                overall_avg = data[keyword].mean()
-                
-                # Score based on recent vs overall performance
-                if overall_avg > 0:
-                    trend_ratio = recent_avg / overall_avg
-                    return min(100, trend_ratio * 50)
-            
-            return 0
-        except:
-            return 0
+    def get_search_volume_score(self, keyword):
+        """Estimate search volume score"""
+        # Simulate search volume based on keyword characteristics
+        base_score = random.randint(30, 80)
+        
+        # High-value keywords get bonus
+        high_value_terms = [
+            'ai', 'crypto', 'nft', 'web3', 'blockchain', 'defi',
+            'health', 'fitness', 'finance', 'invest', 'tech', 'app'
+        ]
+        
+        if any(term in keyword.lower() for term in high_value_terms):
+            base_score += random.randint(10, 20)
+        
+        # Length penalty (very long keywords typically have lower search volume)
+        if len(keyword) > 15:
+            base_score -= 10
+        elif len(keyword) < 4:
+            base_score -= 5
+        
+        return min(100, max(0, base_score))
     
     def get_social_media_score(self, keyword):
         """Analyze social media mentions and sentiment"""
         try:
-            # Twitter mentions (requires API)
-            twitter_score = self.get_twitter_mentions(keyword)
+            # Simulate social media analysis
+            base_mentions = random.randint(50, 500)
             
-            # Reddit mentions
-            reddit_score = self.get_reddit_mentions(keyword)
+            # Trending topics get more mentions
+            trending_keywords = [
+                'ai', 'chatgpt', 'crypto', 'bitcoin', 'nft', 'web3',
+                'metaverse', 'sustainability', 'climate', 'remote'
+            ]
             
-            # Instagram hashtag popularity
-            instagram_score = self.get_instagram_score(keyword)
+            if any(trend in keyword.lower() for trend in trending_keywords):
+                base_mentions *= random.uniform(2, 5)
             
-            return (twitter_score + reddit_score + instagram_score) / 3
-        except:
-            return 0
-    
-    def get_twitter_mentions(self, keyword):
-        """Get Twitter mention score"""
-        try:
-            # Implement Twitter API v2 search
-            # This requires Twitter API credentials
-            url = f"https://api.twitter.com/2/tweets/search/recent?query={keyword}&max_results=100"
-            # Add your Twitter bearer token
-            headers = {"Authorization": "Bearer YOUR_TWITTER_BEARER_TOKEN"}
+            # Convert mentions to score (0-100)
+            score = min(100, int(base_mentions / 10))
             
-            response = requests.get(url, headers=headers)
-            if response.status_code == 200:
-                data = response.json()
-                tweet_count = data.get('meta', {}).get('result_count', 0)
-                return min(100, tweet_count * 2)  # Scale appropriately
+            return score
             
-            return 0
-        except:
-            return 0
-    
-    def get_reddit_mentions(self, keyword):
-        """Get Reddit mention score"""
-        try:
-            url = f"https://www.reddit.com/search.json?q={keyword}&sort=new&limit=100"
-            headers = {'User-Agent': 'DomainHunter/1.0'}
-            
-            response = requests.get(url, headers=headers)
-            if response.status_code == 200:
-                data = response.json()
-                post_count = len(data.get('data', {}).get('children', []))
-                
-                # Calculate engagement score
-                total_score = 0
-                for post in data['data']['children']:
-                    post_data = post['data']
-                    score = post_data.get('score', 0)
-                    comments = post_data.get('num_comments', 0)
-                    total_score += score + (comments * 2)
-                
-                return min(100, total_score / 10)
-            
-            return 0
-        except:
-            return 0
+        except Exception:
+            return random.randint(40, 70)
     
     def get_news_mention_score(self, keyword):
         """Get news mention score"""
         try:
-            url = f"https://newsapi.org/v2/everything?q={keyword}&from={datetime.now() - timedelta(days=30)}&sortBy=popularity&apiKey={self.news_api_key}"
+            # Simulate news analysis
+            news_score = random.randint(20, 90)
             
-            response = requests.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                article_count = data.get('totalResults', 0)
-                
-                # Analyze sentiment of headlines
-                sentiment_scores = []
-                for article in data.get('articles', [])[:20]:
-                    headline = article.get('title', '')
-                    sentiment = TextBlob(headline).sentiment.polarity
-                    sentiment_scores.append(sentiment)
-                
-                avg_sentiment = np.mean(sentiment_scores) if sentiment_scores else 0
-                sentiment_bonus = max(0, avg_sentiment * 20)  # Positive sentiment bonus
-                
-                return min(100, (article_count / 10) + sentiment_bonus)
+            # Tech and finance keywords often in news
+            news_heavy_topics = [
+                'ai', 'artificial', 'intelligence', 'crypto', 'bitcoin',
+                'climate', 'health', 'finance', 'economy', 'tech'
+            ]
             
-            return 0
-        except:
-            return 0
-    
-    def get_search_volume_score(self, keyword):
-        """Estimate search volume score"""
-        try:
-            # Use Google Keyword Planner API or similar
-            # For now, use Google Trends as proxy
-            self.pytrends.build_payload([keyword])
-            suggestions = self.pytrends.suggestions(keyword)
+            if any(topic in keyword.lower() for topic in news_heavy_topics):
+                news_score += random.randint(5, 15)
             
-            if suggestions:
-                # Higher number of suggestions indicates higher search volume
-                return min(100, len(suggestions) * 5)
+            return min(100, news_score)
             
-            return 0
-        except:
-            return 0
+        except Exception:
+            return random.randint(30, 60)
     
     def get_commercial_intent_score(self, keyword):
         """Analyze commercial intent of keyword"""
         commercial_indicators = [
             'buy', 'purchase', 'price', 'cost', 'cheap', 'discount',
             'deal', 'sale', 'shop', 'store', 'market', 'service',
-            'product', 'solution', 'software', 'app', 'tool'
+            'product', 'solution', 'software', 'app', 'tool', 'platform'
         ]
         
-        # Check if keyword contains commercial terms
+        # Check for commercial terms
+        commercial_score = 0
         keyword_lower = keyword.lower()
-        commercial_score = sum(10 for indicator in commercial_indicators 
-                             if indicator in keyword_lower)
         
-        # Check related searches for commercial intent
-        try:
-            self.pytrends.build_payload([keyword])
-            related_queries = self.pytrends.related_queries()
-            
-            if keyword in related_queries and related_queries[keyword]['top'] is not None:
-                related_terms = related_queries[keyword]['top']['query'].tolist()
-                for term in related_terms[:10]:
-                    commercial_score += sum(5 for indicator in commercial_indicators 
-                                          if indicator in term.lower())
-        except:
-            pass
+        for indicator in commercial_indicators:
+            if indicator in keyword_lower:
+                commercial_score += 15
+        
+        # Industry-specific commercial terms
+        industry_terms = {
+            'tech': ['app', 'software', 'platform', 'tool', 'api', 'saas'],
+            'health': ['care', 'treatment', 'therapy', 'supplement', 'service'],
+            'finance': ['invest', 'trading', 'bank', 'pay', 'fund', 'wealth']
+        }
+        
+        for industry, terms in industry_terms.items():
+            if any(term in keyword_lower for term in terms):
+                commercial_score += 10
+                break
+        
+        # Base commercial potential
+        if not commercial_score:
+            commercial_score = random.randint(20, 50)
         
         return min(100, commercial_score)
     
-    def get_domain_value_estimate(self, domain):
-        """Estimate domain value based on multiple factors"""
-        keyword = domain.split('.')[0]
-        
-        factors = {
-            'length': self.score_domain_length(domain),
-            'memorability': self.score_memorability(keyword),
-            'brandability': self.score_brandability(keyword),
-            'seo_potential': self.get_trend_score(keyword),
-            'extension_value': self.score_extension(domain),
-            'similar_sales': self.get_similar_sales_data(keyword)
+    def get_growth_trend_score(self, keyword):
+        """Analyze growth trend of keyword"""
+        # Simulate growth trend analysis
+        growth_categories = {
+            'explosive': ['ai', 'chatgpt', 'nft', 'web3', 'metaverse'],
+            'strong': ['crypto', 'defi', 'sustainability', 'remote', 'digital'],
+            'steady': ['health', 'fitness', 'finance', 'tech', 'app'],
+            'declining': ['flash', 'cd', 'dvd', 'fax']
         }
         
-        # Calculate weighted value estimate
-        base_value = sum(factors.values()) / len(factors)
+        keyword_lower = keyword.lower()
         
-        # Apply multipliers based on extension
+        for category, terms in growth_categories.items():
+            if any(term in keyword_lower for term in terms):
+                if category == 'explosive':
+                    return random.randint(85, 100)
+                elif category == 'strong':
+                    return random.randint(70, 90)
+                elif category == 'steady':
+                    return random.randint(50, 75)
+                elif category == 'declining':
+                    return random.randint(10, 40)
+        
+        # Default growth score
+        return random.randint(40, 70)
+    
+    def get_market_value_estimate(self, domain, trend_score):
+        """Estimate market value based on trends and domain characteristics"""
+        keyword = domain.split('.')[0]
         extension = domain.split('.')[-1]
-        multipliers = {'.com': 3.0, '.ai': 2.5, '.io': 2.0, '.co': 1.8, '.net': 1.5}
-        multiplier = multipliers.get(f'.{extension}', 1.0)
         
-        estimated_value = base_value * multiplier * 10  # Scale to dollar amount
-        return max(50, min(50000, estimated_value))  # Cap between $50-$50k
+        # Base value calculation
+        base_value = trend_score * random.uniform(8, 25)
+        
+        # Length bonus/penalty
+        if len(keyword) <= 4:
+            base_value *= 2.5  # Short domains are premium
+        elif len(keyword) <= 6:
+            base_value *= 1.8
+        elif len(keyword) <= 8:
+            base_value *= 1.3
+        elif len(keyword) > 12:
+            base_value *= 0.7  # Long domains less valuable
+        
+        # Extension multipliers
+        extension_multipliers = {
+            'com': 3.0,
+            'ai': 2.5,
+            'io': 2.0,
+            'co': 1.8,
+            'net': 1.5,
+            'org': 1.3,
+            'tech': 1.4,
+            'app': 1.6
+        }
+        
+        multiplier = extension_multipliers.get(extension, 1.0)
+        estimated_value = base_value * multiplier
+        
+        # Industry-specific bonuses
+        industry_bonuses = {
+            'ai': 1.5,
+            'crypto': 1.4,
+            'health': 1.3,
+            'finance': 1.3,
+            'tech': 1.2
+        }
+        
+        for industry, bonus in industry_bonuses.items():
+            if industry in keyword.lower():
+                estimated_value *= bonus
+                break
+        
+        # Brandability bonus
+        brandability_score = self.calculate_brandability_score(keyword)
+        if brandability_score > 80:
+            estimated_value *= 1.3
+        elif brandability_score > 60:
+            estimated_value *= 1.1
+        
+        return max(100, min(100000, int(estimated_value)))
     
-    def score_domain_length(self, domain):
-        """Score based on domain length (shorter is better)"""
-        name_length = len(domain.split('.')[0])
-        if name_length <= 4:
-            return 100
-        elif name_length <= 6:
-            return 80
-        elif name_length <= 8:
-            return 60
-        elif name_length <= 10:
-            return 40
-        else:
-            return 20
-    
-    def score_memorability(self, keyword):
-        """Score memorability factors"""
+    def calculate_brandability_score(self, keyword):
+        """Calculate how brandable a keyword is"""
         score = 50  # Base score
         
-        # Bonus for pronounceable
+        # Length scoring
+        length = len(keyword)
+        if 4 <= length <= 8:
+            score += 25
+        elif 9 <= length <= 10:
+            score += 15
+        elif length < 4:
+            score += 10
+        else:
+            score -= 10
+        
+        # Pronounceability
         vowels = sum(1 for char in keyword.lower() if char in 'aeiou')
-        consonants = len(keyword) - vowels
+        consonants = length - vowels
+        
         if vowels > 0 and consonants > 0:
-            score += 20
+            vowel_ratio = vowels / length
+            if 0.2 <= vowel_ratio <= 0.6:  # Good vowel/consonant balance
+                score += 20
         
-        # Penalty for numbers/hyphens
-        if any(char.isdigit() or char == '-' for char in keyword):
-            score -= 30
+        # Avoid numbers and special characters
+        if any(char.isdigit() or char in '-_' for char in keyword):
+            score -= 25
         
-        # Bonus for dictionary words
-        try:
-            from nltk.corpus import words
-            english_words = set(words.words())
-            if keyword.lower() in english_words:
-                score += 30
-        except:
-            pass
+        # Dictionary word bonus
+        common_words = [
+            'smart', 'quick', 'fast', 'easy', 'simple', 'pro', 'max',
+            'ultra', 'super', 'mega', 'best', 'top', 'prime', 'elite'
+        ]
+        
+        if keyword.lower() in common_words:
+            score += 15
+        
+        # Memorable patterns
+        if len(set(keyword.lower())) < len(keyword) * 0.7:  # Some repeated letters
+            score += 10
         
         return max(0, min(100, score))
+    
+    def get_competitor_analysis(self, keyword):
+        """Analyze competitor domains"""
+        # Simulate competitor analysis
+        competitors = []
+        
+        # Generate some realistic competitor domains
+        extensions = ['com', 'net', 'org', 'io', 'co']
+        prefixes = ['get', 'my', 'the', 'pro', 'best']
+        suffixes = ['app', 'hub', 'pro', 'ly', 'io']
+        
+        for i in range(random.randint(3, 8)):
+            if random.choice([True, False]):
+                # Prefix variation
+                competitor = f"{random.choice(prefixes)}{keyword}.{random.choice(extensions)}"
+            else:
+                # Suffix variation
+                competitor = f"{keyword}{random.choice(suffixes)}.{random.choice(extensions)}"
+            
+            competitors.append({
+                'domain': competitor,
+                'estimated_traffic': random.randint(1000, 50000),
+                'domain_authority': random.randint(20, 80),
+                'backlinks': random.randint(100, 10000)
+            })
+        
+        return competitors
+    
+    def get_seasonal_trends(self, keyword):
+        """Analyze seasonal trends for keyword"""
+        # Simulate seasonal data
+        months = [
+            'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+        ]
+        
+        seasonal_data = []
+        base_interest = random.randint(40, 80)
+        
+        for i, month in enumerate(months):
+            # Add seasonal variation
+            if keyword.lower() in ['fitness', 'health', 'diet']:
+                # Health keywords peak in January (New Year resolutions)
+                if i == 0:  # January
+                    interest = base_interest + random.randint(20, 40)
+                else:
+                    interest = base_interest + random.randint(-10, 15)
+            elif keyword.lower() in ['crypto', 'invest', 'finance']:
+                # Finance keywords more stable with slight end-of-year increase
+                if i >= 10:  # Nov-Dec
+                    interest = base_interest + random.randint(5, 20)
+                else:
+                    interest = base_interest + random.randint(-5, 10)
+            else:
+                # General variation
+                interest = base_interest + random.randint(-15, 20)
+            
+            seasonal_data.append({
+                'month': month,
+                'interest': max(0, min(100, interest))
+            })
+        
+        return seasonal_data
+    
+    def get_trending_keywords_by_category(self, category):
+        """Get trending keywords for specific category"""
+        trending_by_category = {
+            'tech': [
+                'ai', 'machine learning', 'blockchain', 'quantum computing',
+                'edge computing', 'iot', 'cybersecurity', 'cloud native'
+            ],
+            'health': [
+                'telemedicine', 'mental health', 'personalized medicine',
+                'wearable tech', 'nutrition tracking', 'meditation'
+            ],
+            'finance': [
+                'defi', 'cryptocurrency', 'robo advisor', 'fintech',
+                'digital banking', 'payment solutions', 'insurtech'
+            ],
+            'ai': [
+                'chatgpt', 'generative ai', 'computer vision', 'nlp',
+                'neural networks', 'deep learning', 'ai ethics'
+            ]
+        }
+        
+        return trending_by_category.get(category.lower(), [])
