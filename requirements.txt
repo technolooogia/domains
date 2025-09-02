@@ -12,3 +12,5 @@ numpy>=1.21.0
 selenium
 whois
 asyncio
+tweepy
+sqlite3
